@@ -153,3 +153,38 @@ class ScoreFetcher:
         except Exception as e:
             print(f"获取平时成绩时出错: {e}")
             return None
+
+    def get_combined_scores(self):
+        """
+        获取总成绩和平时成绩，并将它们合并。
+        """
+        if not self.is_logged_in:
+            print("错误：未登录。")
+            return None
+
+        all_scores = self.get_all_scores()
+        time.sleep(2) # 模拟人类行为
+        normal_scores = self.get_normal_scores()
+
+        if not all_scores:
+            print("未能获取总成绩，无法进行合并。")
+            return None
+
+        if not normal_scores:
+            print("未能获取平时成绩，将只返回总成绩。")
+            return all_scores
+
+        # 创建一个快速查找平时成绩的字典
+        # key: (课程名称, 教师)
+        normal_scores_map = {(ns['course_name'], ns['teacher']): ns['details'] for ns in normal_scores}
+
+        # 遍历总成绩，将平时成绩详情合并进去
+        for score_record in all_scores:
+            key = (score_record['课程名称'], score_record['教师'])
+            if key in normal_scores_map:
+                score_record['normal_details'] = normal_scores_map[key]
+            else:
+                score_record['normal_details'] = None
+
+        print("总成绩与平时成绩合并完成。")
+        return all_scores

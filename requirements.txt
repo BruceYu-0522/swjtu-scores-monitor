@@ -49,12 +49,12 @@ pillow==12.0.0
     #   ddddocr
 protobuf==6.33.2
     # via onnxruntime
+psycopg2-binary==2.9.11
+    # via swjtu-score-monitor (pyproject.toml)
 pydantic==2.12.5
     # via fastapi
 pydantic-core==2.41.5
     # via pydantic
-python-dotenv==1.0.0
-    # via vercel-kv
 requests==2.32.5
     # via swjtu-score-monitor (pyproject.toml)
 soupsieve==2.8
@@ -77,5 +77,3 @@ typing-inspection==0.4.2
     # via pydantic
 urllib3==2.6.2
     # via requests
-vercel-kv==0.1.4
-    # via swjtu-score-monitor (pyproject.toml)
