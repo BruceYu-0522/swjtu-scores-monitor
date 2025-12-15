@@ -1,0 +1,12 @@
+[project]
+name = "swjtu-score-monitor"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "bs4>=0.0.2",
+    "ddddocr>=1.5.6",
+    "pillow>=12.0.0",
+    "requests>=2.32.5",
+]
