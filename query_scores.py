@@ -3,10 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import getpass
-from PIL import Image
-import io
 import config  # 从配置文件导入账号密码
-import cv2
 import ddddocr
 
 # --- 配置与常量 ---
