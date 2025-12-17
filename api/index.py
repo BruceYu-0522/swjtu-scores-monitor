@@ -90,7 +90,7 @@ async def trigger_check_login_usability(api_key: str = Security(get_api_key)):
     if login_success:
         return {"status": "success", "message": "登录成功，学号和密码有效。"}
     else:
-        return {"status": "error", "message": "登录失败，请检查学号和密码是否正确。"}
+        raise HTTPException(status_code=500, detail=f"登录失败，请检查学号和密码是否正确；或为教务处服务器外网访问被关闭。")
     
 @app.get("/api/monitor-scores")
 @app.post("/api/monitor-scores")
