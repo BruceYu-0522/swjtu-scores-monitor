@@ -1,26 +1,27 @@
 import json
 from upstash_redis import Redis
-from datetime import datetime
+from datetime import datetime, timezone
 
 # 从环境变量中初始化 Upstash Redis 客户端
 # SDK 会自动读取 UPSTASH_REDIS_REST_URL 和 UPSTASH_REDIS_REST_TOKEN
 redis = Redis.from_env()
 
-def save_scores(scores: list):
+def save_scores(scores: list, ttl_seconds: int = 86400):
     """
     将一份完整的成绩列表保存到 Upstash Redis。
     我们使用带时间戳的 key 来保存历史记录。
 
     Args:
         scores (list): 从 ScoreFetcher 获取的 combined_scores 列表。
+        ttl_seconds (int): 数据过期时间（秒），默认 1 天。
     """
-    timestamp = datetime.utcnow().isoformat() + "Z"
+    timestamp = datetime.now(timezone.utc).isoformat()
     key = f"scores:{timestamp}"
     
-    print(f"--- 准备保存成绩到 Upstash Redis，Key: {key} ---")
+    print(f"--- 准备保存成绩到 Upstash Redis，Key: {key}，TTL: {ttl_seconds}秒 ---")
     
-    # 使用 redis.set() 方法，它会自动处理 JSON 序列化
-    redis.set(key, scores)
+    # 使用 redis.set() 方法，设置过期时间
+    redis.set(key, scores, ex=ttl_seconds)
     
     print(f"--- 成功保存 {len(scores)} 条成绩记录到 Upstash Redis ---")
     return key

@@ -63,7 +63,7 @@ def segment_characters(img):
     for x, val in enumerate(vertical_projection):
         draw.line([(x, height), (x, height - val)], fill=(0, 0, 0))
     #proj_img.save(os.path.join(DEBUG_FOLDER, "debug_3_vertical_projection.png"))
-    print("✅ 步骤3: 垂直投影计算完成。请检查 'debug_output/debug_3_vertical_projection.png'")
+    print("✅ 步骤3: 垂直投影计算完成。'")
 
     # 步骤 2.2: 寻找边界并切割
     in_char = False
@@ -84,7 +84,6 @@ def segment_characters(img):
         char_boundaries.append((start_x, width))
 
     char_images = []
-    print("✅ 步骤4: 字符分割完成。正在保存每个字符...")
     for i, (start, end) in enumerate(char_boundaries):
         box = (start, 0, end, height)
         char_img = img.crop(box)
@@ -123,8 +122,9 @@ def segment_characters(img):
         char_images.append(char_img)
         # 【调试】保存每个切割出的字符（保持二值模式）
         #char_img.save(os.path.join(DEBUG_FOLDER, f"char_{i}.png"))
-        print(f"  - 保存 'debug_output/char_{i}.png'")
+        #print(f"  - 保存 'debug_output/char_{i}.png'")
         
+    print("✅ 步骤4: 字符分割完成。")
     return char_images
 
 # --- 3. 字符识别 (增加详细log) ---
@@ -303,7 +303,7 @@ def classify(image_bytes):
                 
     # 【调试】保存二值化结果
     #img_bin.convert('RGB').save(os.path.join(DEBUG_FOLDER, "debug_1_binarized.png"))
-    print("✅ 步骤1: 二值化完成。请检查 'debug_output/debug_1_binarized.png'")    
+    print("✅ 步骤1: 二值化完成。'")    
     # 2. 分割字符
     char_images = segment_characters(img_bin)
     

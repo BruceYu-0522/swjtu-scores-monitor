@@ -7,8 +7,8 @@ from pathlib import Path
 import sys, os
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from scraper.fetcher import ScoreFetcher
-from scraper import database
+from utils.fetcher import ScoreFetcher
+from utils import database
 
 app = FastAPI()
 
@@ -72,6 +72,221 @@ async def trigger_fetch_scores(api_key: str = Security(get_api_key)):
 @app.get("/")
 def read_root():
     return {"status": "online", "message": "SWJTU Score Fetcher API is running with upstash."}
+
+@app.get("/api/send-email") 
+@app.post("/api/send-email")
+async def trigger_send_email(api_key: str = Security(get_api_key)):
+    
+    pass
+
+@app.get("/api/monitor-scores")
+@app.post("/api/monitor-scores")
+async def trigger_monitor_scores(api_key: str = Security(get_api_key)):
+    """监控成绩变化，如有变动则发送邮件通知"""
+    from utils.notify import send_email
+    
+    username = os.environ.get("SWJTU_USERNAME")
+    password = os.environ.get("SWJTU_PASSWORD")
+    
+    # 邮件配置
+    smtp_host = os.environ.get("SMTP_HOST")
+    smtp_port = int(os.environ.get("SMTP_PORT", "465"))
+    notify_email = os.environ.get("NOTIFY_EMAIL")
+    email_password = os.environ.get("EMAIL_PASSWORD")
+    
+    if not username or not password:
+        raise HTTPException(status_code=500, detail="服务器未配置学号或密码环境变量")
+    
+    if not smtp_host or not notify_email or not email_password:
+        raise HTTPException(status_code=500, detail="服务器未配置邮件环境变量")
+    
+    print("--- 任务开始: 监控成绩变化 ---")
+    
+    try:
+        # 1. 获取数据库中的旧成绩
+        print("正在从数据库获取历史成绩...")
+        old_scores = database.get_latest_scores()
+        
+        # 2. 登录并获取最新成绩
+        print("正在登录教务系统获取最新成绩...")
+        fetcher = ScoreFetcher(username=username, password=password)
+        login_success = fetcher.login()
+        
+        if not login_success:
+            return {"status": "error", "message": "登录失败，请检查日志。"}
+        
+        new_scores = fetcher.get_combined_scores()
+        
+        if not new_scores:
+            return {"status": "error", "message": "未能获取到任何成绩数据。"}
+        
+        # 3. 比较成绩变化
+        print("正在比较成绩变化...")
+        changes = []
+        
+        # 创建旧成绩的快速查找字典 (课程名称+教师) -> 成绩记录
+        old_scores_map = {}
+        if old_scores:
+            for score in old_scores:
+                key = (score.get('课程名称'), score.get('教师'))
+                old_scores_map[key] = score
+        
+        # 检查新成绩中的变化
+        for new_score in new_scores:
+            key = (new_score.get('课程名称'), new_score.get('教师'))
+            
+            if key not in old_scores_map:
+                # 新增课程
+                changes.append({
+                    'type': '新增',
+                    'course': new_score
+                })
+            else:
+                # 检查是否有成绩变化
+                old_score = old_scores_map[key]
+                
+                # 比较总成绩
+                if old_score.get('总成绩') != new_score.get('总成绩'):
+                    changes.append({
+                        'type': '总成绩变化',
+                        'course': new_score,
+                        'old_value': old_score.get('总成绩'),
+                        'new_value': new_score.get('总成绩')
+                    })
+                
+                # 比较平时成绩详情
+                old_details = old_score.get('平时成绩详情', [])
+                new_details = new_score.get('平时成绩详情', [])
+                
+                if old_details != new_details:
+                    changes.append({
+                        'type': '平时成绩变化',
+                        'course': new_score,
+                        'old_details': old_details,
+                        'new_details': new_details
+                    })
+        
+        # 4. 如果有变化，发送邮件
+        if changes:
+            print(f"检测到 {len(changes)} 项成绩变化，正在发送邮件通知...")
+            
+            # 生成 HTML 表格
+            html_body = generate_change_notification_html(changes)
+            
+            # 发送邮件
+            send_email(
+                smtp_server=smtp_host,
+                smtp_port=smtp_port,
+                sender_email=notify_email,
+                sender_password=email_password,
+                receiver_email=notify_email,
+                subject="🎓 成绩更新通知",
+                body=html_body
+            )
+            
+            # 保存新成绩到数据库
+            print("正在将新成绩保存到数据库...")
+            database.save_scores(new_scores)
+            
+            return {
+                "status": "success",
+                "message": f"检测到 {len(changes)} 项成绩变化，已发送邮件通知。",
+                "changes": changes,
+                "old": old_scores,
+                "new": new_scores
+            }
+        else:
+            print("未检测到成绩变化。")
+            return {
+                "status": "success",
+                "message": "成绩无变化。",
+                "changes": []
+            }
+    
+    except Exception as e:
+        print(f"监控成绩时发生错误: {e}")
+        raise HTTPException(status_code=500, detail=f"监控成绩时发生内部错误: {str(e)}")
+    
+    finally:
+        print("--- 任务完成 ---")
+
+def generate_change_notification_html(changes):
+    """生成成绩变化通知的 HTML 表格"""
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            h2 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+            .change-section { margin: 20px 0; padding: 15px; background-color: #f8f9fa; border-radius: 5px; }
+            .change-type { font-weight: bold; color: #e74c3c; margin-bottom: 10px; }
+            table { border-collapse: collapse; width: 100%; margin: 10px 0; background-color: white; }
+            th { background-color: #3498db; color: white; padding: 12px; text-align: left; }
+            td { border: 1px solid #ddd; padding: 10px; }
+            tr:nth-child(even) { background-color: #f2f2f2; }
+            .new-value { color: #27ae60; font-weight: bold; }
+            .old-value { color: #95a5a6; text-decoration: line-through; }
+            .highlight { background-color: #fff3cd; }
+        </style>
+    </head>
+    <body>
+        <h2>🎓 成绩更新通知</h2>
+        <p>检测到您的成绩有以下变化：</p>
+    """
+    
+    for change in changes:
+        course = change['course']
+        change_type = change['type']
+        
+        html += f'<div class="change-section">'
+        html += f'<div class="change-type">【{change_type}】{course.get("课程名称", "未知课程")} - {course.get("教师", "")}</div>'
+        
+        if change_type == '新增':
+            html += '<table>'
+            html += '<tr><th>项目</th><th>内容</th></tr>'
+            html += f'<tr><td>课程名称</td><td>{course.get("课程名称", "")}</td></tr>'
+            html += f'<tr><td>教师</td><td>{course.get("教师", "")}</td></tr>'
+            html += f'<tr><td>总成绩</td><td class="new-value">{course.get("总成绩", "")}</td></tr>'
+            html += f'<tr><td>绩点</td><td>{course.get("绩点", "")}</td></tr>'
+            html += f'<tr><td>学分</td><td>{course.get("学分", "")}</td></tr>'
+            html += '</table>'
+            
+        elif change_type == '总成绩变化':
+            html += '<table>'
+            html += '<tr><th>项目</th><th>原成绩</th><th>新成绩</th></tr>'
+            html += f'<tr class="highlight"><td>总成绩</td><td class="old-value">{change.get("old_value", "")}</td><td class="new-value">{change.get("new_value", "")}</td></tr>'
+            html += '</table>'
+            
+        elif change_type == '平时成绩变化':
+            html += '<p><strong>平时成绩详情有变化：</strong></p>'
+            
+            new_details = change.get('new_details', [])
+            if new_details:
+                html += '<table>'
+                html += '<tr><th>平时成绩名称</th><th>成绩</th><th>占比</th><th>提交时间</th></tr>'
+                for detail in new_details:
+                    html += '<tr>'
+                    html += f'<td>{detail.get("平时成绩名称", "")}</td>'
+                    html += f'<td class="new-value">{detail.get("成绩", "")}</td>'
+                    html += f'<td>{detail.get("占比", "")}</td>'
+                    html += f'<td>{detail.get("提交时间", "")}</td>'
+                    html += '</tr>'
+                html += '</table>'
+        
+        html += '</div>'
+    
+    html += """
+        <p style="margin-top: 30px; color: #7f8c8d;">
+            <em>此邮件由成绩监控系统自动发送，请勿回复。</em><br>
+            <em>请登录教务系统查看完整信息。</em>
+        </p>
+    </body>
+    </html>
+    """
+    
+    return html
 
 if __name__ == "__main__":
     sf = ScoreFetcher("2023112590", os.environ.get("SWJTU_PASSWORD"))  # 仅用于本地测试
