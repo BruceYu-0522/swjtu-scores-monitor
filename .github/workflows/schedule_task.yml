@@ -4,7 +4,7 @@ on:
   schedule:
     # 对应北京时间 07:00 - 23:59，每30分钟执行一次
     # GitHub 使用 UTC 时间，所以配置为 UTC 23:00 - 15:59
-    - cron: '*/30 0-15,23 * * *'
+    - cron: '*/20 0-15,23 * * *'
   # 允许手动点击按钮触发，方便测试
   workflow_dispatch:
 
@@ -19,4 +19,4 @@ jobs:
         run: |
           # 发送请求，-v 会显示详细日志，便于调试
           # 请将下面的 URL 替换为你真实的地址
-          curl -X GET "https://swjtu-score-monitor.vercel.app/?secret=$MY_SECRET"
+          curl -X GET "https://swjtu-score-monitor.vercel.app/api/monitor-scores?secret=$MY_SECRET"
