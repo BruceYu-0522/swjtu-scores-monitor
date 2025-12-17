@@ -30,12 +30,12 @@ def get_latest_scores():
     从 Upstash Redis 中获取最新的一份成绩单。
     """
     # 获取所有以 "scores:" 开头的 key
-    # 注意：upstash-redis 的 keys() 方法返回的是 bytes，需要解码
-    score_keys_bytes = redis.keys("scores:*")
-    if not score_keys_bytes:
+    # upstash-redis SDK 默认返回解码后的字符串列表
+    score_keys = redis.keys("scores:*") # <-- 直接赋值，并重命名变量
+    if not score_keys:
         return None
     
-    score_keys = [key.decode('utf-8') for key in score_keys_bytes]
+    # 不需要再解码了，因为 score_keys 本身就是字符串列表
     
     # 按时间倒序排列 key
     latest_key = sorted(score_keys, reverse=True)[0]
