@@ -31,7 +31,7 @@ class ScoreFetcher:
         self.session.headers.update(HEADERS)
         self.is_logged_in = False
 
-    def login(self, max_retries=5, retry_delay=1):
+    def login(self, max_retries=10, retry_delay=1):
         for attempt in range(1, max_retries + 1):
             print(f"--- 登录尝试 #{attempt}/{max_retries} ---")
             
@@ -167,7 +167,7 @@ class ScoreFetcher:
             return None
 
         all_scores = self.get_all_scores()
-        time.sleep(0.3) # 模拟人类行为
+        time.sleep(1) # 模拟人类行为
         normal_scores = self.get_normal_scores()
 
         if not all_scores:
