@@ -56,7 +56,7 @@ class ScoreFetcher:
                 login_result = response.json()
 
                 if login_result.get('loginStatus') == '1':
-                    print(f"API验证成功！{login_result.get('loginMsg')}")
+                    print(f"API验证成功！{login_result.get('loginMsg')[5:0]}")
                     print("正在访问加载页面以建立完整会话...")
                     self.session.get(LOADING_URL, headers={'Referer': LOGIN_PAGE_URL}, timeout=10)
                     print("会话建立成功，已登录。")
@@ -172,13 +172,13 @@ class ScoreFetcher:
 
         if not all_scores:
             print("未能获取总成绩，无法进行合并。")
-            return None
+            raise Exception("未能获取总成绩，无法进行合并。")
 
         if not normal_scores:
-            print("未能获取平时成绩，将只返回总成绩。")
-            return all_scores
+            print("未能获取平时成绩。")
+            raise Exception("未能获取平时成绩。")
 
-        print(normal_scores)
+        print(f"获取到 {len(normal_scores)} 门课程的平时成绩")
         # 创建一个快速查找平时成绩的字典
         # key: (课程名称, 教师)
         normal_scores_map = {(ns['课程名称'], ns['教师']): {

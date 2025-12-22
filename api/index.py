@@ -58,10 +58,8 @@ async def trigger_fetch_scores(api_key: str = Security(get_api_key)):
             "message": "成绩获取和存储任务已完成。",
             "summary": {
                 "total_records_processed": len(combined_scores),
-                "old_records": old,
-                "fetched_records": combined_scores,
-                "new_records_key": upsert_results,
-                "existing_records": new,
+                "old_records_count": len(old) if old else 0,
+                "new_records_count": len(new) if new else 0,
             }
         }
 
@@ -235,9 +233,7 @@ async def trigger_monitor_scores(api_key: str = Security(get_api_key)):
             return {
                 "status": "success",
                 "message": f"检测到 {len(changes)} 项成绩变化，已发送邮件通知。",
-                "changes": changes,
-                "old": old_scores,
-                "new": new_scores
+                "changes_count": len(changes)
             }
         else:
             print("未检测到成绩变化。")
@@ -348,7 +344,7 @@ def generate_change_notification_html(changes):
     return html
 
 if __name__ == "__main__":
-    sf = ScoreFetcher("2023112590", os.environ.get("SWJTU_PASSWORD"))  # 仅用于本地测试
+    sf = ScoreFetcher(os.environ.get("SWJTU_USERNAME"), os.environ.get("SWJTU_PASSWORD"))  # 仅用于本地测试
     sf.login()
     sc = sf.get_combined_scores()  # 仅用于本地测试
-    print(sc)
+    print(f"获取到 {len(sc) if sc else 0} 条成绩记录")

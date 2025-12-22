@@ -35,9 +35,7 @@ def _get_or_create_gist_id():
     if _CACHED_GIST_ID:
         return _CACHED_GIST_ID
 
-    print(f"--- 正在根据双重特征查找 Gist... ---")
-    print(f"   1. 描述: {TARGET_DESCRIPTION}")
-    print(f"   2. 文件: {GIST_FILENAME}")
+    print(f"--- 正在查找 Gist... ---")
 
     try:
         # 获取用户的所有 Gist
@@ -57,7 +55,7 @@ def _get_or_create_gist_id():
             if GIST_FILENAME in files:
                 # 只有两个条件都满足，才认为是我们要找的那个
                 _CACHED_GIST_ID = gist["id"]
-                print(f"--- 成功匹配到 Gist ID: {_CACHED_GIST_ID} ---")
+                print(f"--- 成功匹配到 Gist ---")
                 return _CACHED_GIST_ID
             
         # 如果没找到，创建新的
@@ -78,7 +76,7 @@ def _get_or_create_gist_id():
         
         new_gist = create_response.json()
         _CACHED_GIST_ID = new_gist["id"]
-        print(f"--- 创建成功，新 Gist ID: {_CACHED_GIST_ID} ---")
+        print(f"--- Gist 创建成功 ---")
         return _CACHED_GIST_ID
 
     except requests.exceptions.RequestException as e:
@@ -105,8 +103,8 @@ def save_scores(scores: list, ttl_seconds: int = None):
         response = requests.patch(update_url, headers=HEADERS, json=payload)
         response.raise_for_status()
         
-        print(f"--- 成功保存到 Gist ({GIST_FILENAME}) ---")
-        return f"{gist_id}@{timestamp}"
+        print(f"--- 成功保存到 Gist ---")
+        return f"saved@{timestamp}"
     except Exception as e:
         print(f"保存失败: {e}")
         return None

@@ -42,10 +42,8 @@ def fetch_scores():
             "message": "成绩获取和存储任务已完成。",
             "summary": {
                 "total_records_processed": len(combined_scores),
-                "old_records": old,
-                "fetched_records": combined_scores,
-                "new_records_key": upsert_results,
-                "existing_records": new,
+                "old_records_count": len(old) if old else 0,
+                "new_records_count": len(new) if new else 0,
             }
         }
 
@@ -109,9 +107,6 @@ def monitor_scores():
             raise Exception({"status": "error", "message": "登录失败，请检查日志。"})
         
         new_scores = fetcher.get_combined_scores()
-        
-        if not new_scores:
-            raise Exception({"status": "error", "message": "未能获取到任何成绩数据。"})
         
         # 3. 比较成绩变化
         print("正在比较成绩变化...")
@@ -215,9 +210,9 @@ def monitor_scores():
             return {
                 "status": "success",
                 "message": f"检测到 {len(changes)} 项成绩变化，已发送邮件通知。",
-                "changes": changes,
-                "old": old_scores,
-                "new": new_scores
+                "changes_count": len(changes),
+                "old_scores_count": len(old_scores) if old_scores else 0,
+                "new_scores_count": len(new_scores) if new_scores else 0,
             }
         else:
             print("未检测到成绩变化。")
