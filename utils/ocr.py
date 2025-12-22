@@ -4,7 +4,7 @@ from pathlib import Path
 import sys, os
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from config import PROJECT_ROOT
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
 # --- 准备工作：创建用于存放调试结果的文件夹 ---
 DEBUG_FOLDER = os.path.join(PROJECT_ROOT, "utils" , "debug_output")
 
@@ -12,9 +12,16 @@ if not os.path.exists(DEBUG_FOLDER):
     os.makedirs(DEBUG_FOLDER)
 
 # --- 1. 预处理 ---
-def preprocess_image(image_path, threshold=128, noise_reduction_strength=2):
+def preprocess_image(image_path, threshold=128, noise_reduction_strength=2, debug=True, save_debug_images=False):
     """
     对图像进行预处理，并保存中间步骤以便调试。
+    
+    参数:
+        image_path: 图像文件路径
+        threshold: 二值化阈值
+        noise_reduction_strength: 降噪强度
+        debug: 是否输出调试信息，默认True
+        save_debug_images: 是否保存中间结果，默认False
     """
     img = Image.open(image_path)
     
@@ -37,15 +44,22 @@ def preprocess_image(image_path, threshold=128, noise_reduction_strength=2):
                 img_data[x, y] = 1
                 
     # 【调试】保存二值化结果
-    #img_bin.convert('RGB').save(os.path.join(DEBUG_FOLDER, "debug_1_binarized.png"))
-    print("✅ 步骤1: 二值化完成。请检查 'utils/debug_output/debug_1_binarized.png'")
+    if save_debug_images:
+        img_bin.convert('RGB').save(os.path.join(DEBUG_FOLDER, "debug_1_binarized.png"))
+    if debug:
+        print(f"✅ 二值化完成" + (" → debug_1_binarized.png" if save_debug_images else ""))
     
     return img_bin
 
 # --- 2. 字符分割 ---
-def segment_characters(img):
+def segment_characters(img, debug=True, save_debug_images=False):
     """
     分割字符，并可视化垂直投影，保存每个切割出的字符。
+    
+    参数:
+        img: 预处理后的图像
+        debug: 是否输出调试信息，默认True
+        save_debug_images: 是否保存中间结果，默认False
     """
     width, height = img.size
     pixels = img.load()
@@ -62,8 +76,10 @@ def segment_characters(img):
     draw = ImageDraw.Draw(proj_img)
     for x, val in enumerate(vertical_projection):
         draw.line([(x, height), (x, height - val)], fill=(0, 0, 0))
-    #proj_img.save(os.path.join(DEBUG_FOLDER, "debug_3_vertical_projection.png"))
-    print("✅ 步骤3: 垂直投影计算完成。'")
+    if save_debug_images:
+        proj_img.save(os.path.join(DEBUG_FOLDER, "debug_3_vertical_projection.png"))
+    if debug:
+        print(f"✅ 垂直投影完成" + (" → debug_3_vertical_projection.png" if save_debug_images else ""))
 
     # 步骤 2.2: 寻找边界并切割
     in_char = False
@@ -121,10 +137,11 @@ def segment_characters(img):
         
         char_images.append(char_img)
         # 【调试】保存每个切割出的字符（保持二值模式）
-        #char_img.save(os.path.join(DEBUG_FOLDER, f"char_{i}.png"))
-        #print(f"  - 保存 'debug_output/char_{i}.png'")
+        if save_debug_images:
+            char_img.save(os.path.join(DEBUG_FOLDER, f"char_{i}.png"))
         
-    print("✅ 步骤4: 字符分割完成。")
+    if debug:
+        print(f"✅ 字符分割完成，共{len(char_images)}个字符" + (f" → char_0.png ~ char_{len(char_images)-1}.png" if save_debug_images else ""))
     return char_images
 
 # --- 3. 字符识别 (增加详细log) ---
@@ -149,7 +166,7 @@ def load_templates(template_dir=os.path.join(PROJECT_ROOT, 'utils', 'templates')
     # 返回包含所有模板的字典
     return templates
 
-def recognize_character(char_img, templates, offset_range=3):
+def recognize_character(char_img, templates, offset_range=3, debug=True):
     """
     识别单个字符图像，通过滑动窗口与模板库中的字符进行像素级比较
     
@@ -157,6 +174,7 @@ def recognize_character(char_img, templates, offset_range=3):
         char_img: 待识别的字符图像(PIL Image对象)
         templates: 模板字符库字典，键为字符名，值为模板图像
         offset_range: 允许的上下左右偏移范围，默认为3像素
+        debug: 是否输出调试信息，默认True
     
     返回:
         best_match: 最匹配的字符名称(字符串)
@@ -170,8 +188,8 @@ def recognize_character(char_img, templates, offset_range=3):
     # 初始化最佳匹配字符为'?'，表示未识别或无匹配结果
     best_match = '?'
     
-    # 【调试】打印分隔线，标记开始新一轮字符匹配过程
-    print("-" * 20)
+    # 存储所有模板的匹配结果，用于调试输出
+    match_results = []
     
     # 遍历模板库中的每个字符模板
     for char_name, template_img in templates.items():
@@ -241,47 +259,53 @@ def recognize_character(char_img, templates, offset_range=3):
                     best_offset_similarity = similarity
                     best_offset = (offset_x, offset_y)
         
-        # 【调试】输出当前模板的最佳匹配结果
-        print(f"  与模板 '{char_name}' 比较，最佳相似度: {best_offset_similarity:.3f} (偏移: {best_offset})")
+        # 记录匹配结果
+        match_results.append((char_name, best_offset_similarity, best_offset))
         
         # 如果当前模板的相似度大于全局最大相似度，则更新最佳匹配
         if best_offset_similarity > max_similarity:
             max_similarity = best_offset_similarity
             best_match = char_name
     
-    # 【调试】输出最终选定的最佳匹配字符及其相似度
-    print(f"  ==> 最佳匹配: '{best_match}' (相似度: {max_similarity:.3f})")
+    # 【调试】输出紧凑的匹配结果
+    if debug:
+        # 按相似度降序排序，只显示前3个
+        sorted_results = sorted(match_results, key=lambda x: x[1], reverse=True)[:3]
+        results_str = " | ".join([f"{name}:{sim:.3f}" for name, sim, _ in sorted_results])
+        print(f"  [{results_str}] → '{best_match}'")
+    
     # 返回识别结果
     return best_match
 
 # --- 4. 对外接口 ---
-def classify(image_bytes):
+def classify(image_bytes, debug=True, save_debug_images=False):
     """
     识别验证码图片（从字节流输入）
     
     参数:
         image_bytes: 图片字节流（可以是从网络请求获取的内容）
-        binary_threshold: 二值化阈值，默认94
-        offset_range: 滑动窗口偏移范围，默认3
-        silent: 是否静默模式（不打印调试信息），默认False
+        debug: 是否输出调试信息，默认True
+        save_debug_images: 是否保存中间结果，默认False
     
     返回:
         识别出的验证码字符串
     """
     import io
     
-
-    print("--- 开始识别验证码 ---")
+    if debug:
+        print("="*50)
+        print("开始识别验证码")
     
     # 0. 加载模板
     templates = load_templates()
     if not templates:
-        print("错误：模板文件夹 'templates' 为空或不存在。请先创建模板。")
-        return
+        if debug:
+            print("❌ 错误：模板文件夹为空或不存在")
+        return None
 
     # 1. 预处理
     BINARY_THRESHOLD = 94
-        # 1. 从字节流加载图像
+    # 1. 从字节流加载图像
     img = Image.open(io.BytesIO(image_bytes))
     # 步骤 1.1: 灰度化
     img_gray = img.convert('L')
@@ -302,55 +326,29 @@ def classify(image_bytes):
                 img_data[x, y] = 1
                 
     # 【调试】保存二值化结果
-    #img_bin.convert('RGB').save(os.path.join(DEBUG_FOLDER, "debug_1_binarized.png"))
-    print("✅ 步骤1: 二值化完成。'")    
-    # 2. 分割字符
-    char_images = segment_characters(img_bin)
-    
-    # 3. 识别字符
-    print("\n✅ 步骤5: 开始逐个识别字符...")
-    result = ""
-    for i, char_img in enumerate(char_images):
-        print(f"\n--- 正在识别第 {i+1} 个字符 (char_{i}.png) ---")
-        recognized_char = recognize_character(char_img, templates)
-        result += recognized_char
-        
-    return result
-
-# --- 主流程 ---
-def main(captcha_path):
-    print("--- 开始识别验证码 ---")
-    
-    # 0. 加载模板
-    templates = load_templates()
-    if not templates:
-        print("错误：模板文件夹 'templates' 为空或不存在。请先创建模板。")
-        return
-
-    # 1. 预处理
-    BINARY_THRESHOLD = 94
-    NOISE_STRENGTH = 4
-    processed_img = preprocess_image(captcha_path, threshold=BINARY_THRESHOLD, noise_reduction_strength=NOISE_STRENGTH)
+    if save_debug_images:
+        img_bin.convert('RGB').save(os.path.join(DEBUG_FOLDER, "debug_2_binarized_bytes.png"))
+    if debug:
+        print(f"✅ 二值化完成" + (" → debug_2_binarized_bytes.png" if save_debug_images else ""))
     
     # 2. 分割字符
-    char_images = segment_characters(processed_img)
+    char_images = segment_characters(img_bin, debug=debug, save_debug_images=save_debug_images)
     
     # 3. 识别字符
-    print("\n✅ 步骤5: 开始逐个识别字符...")
+    if debug:
+        print(f"✅ 开始识别{len(char_images)}个字符：")
     result = ""
     for i, char_img in enumerate(char_images):
-        print(f"\n--- 正在识别第 {i+1} 个字符 (char_{i}.png) ---")
-        recognized_char = recognize_character(char_img, templates)
+        if debug:
+            print(f"  字符{i+1}:", end=" ")
+        recognized_char = recognize_character(char_img, templates, debug=debug)
         result += recognized_char
+    
+    if debug:
+        print(f"✅ 识别完成：{result}")
+        print("="*50)
         
     return result
 
 if __name__ == '__main__':
-    captcha_file = "image.png"
-    if not os.path.exists(captcha_file):
-        print(f"错误: 验证码文件 '{captcha_file}' 不存在。")
-    else:
-        captcha_text = main(captcha_file)
-        print("\n" + "="*30)
-        print(f"最终识别结果: {captcha_text}")
-        print("="*30)
+    pass
