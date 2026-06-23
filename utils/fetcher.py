@@ -124,6 +124,8 @@ class ScoreFetcher:
 
             title = soup.title.text.strip() if soup.title and soup.title.text else "无标题"
             print(f"登录态验证失败: status={response.status_code}, final_url={response.url}, title={title}")
+            page_text = " ".join(soup.get_text(" ", strip=True).split())
+            print(f"登录态验证页面摘要: {page_text[:500]}")
             return False
         except Exception as e:
             print(f"验证已保存登录态失败: {e}")
