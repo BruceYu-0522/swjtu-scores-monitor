@@ -44,19 +44,14 @@ def main():
         cookies = context.cookies()
         browser.close()
 
-    jwc_cookies = [
-        cookie for cookie in cookies
-        if "jwc.swjtu.edu.cn" in cookie.get("domain", "")
-    ]
-
-    if not jwc_cookies:
-        print("没有捕获到教务网 cookie，请确认已经在打开的浏览器中登录成功。")
+    if not cookies:
+        print("没有捕获到任何 cookie，请确认已经在打开的浏览器中登录成功。")
         return 1
 
     session_data = {
         "base_url": "https://jwc.swjtu.edu.cn",
         "saved_at": datetime.now(timezone.utc).isoformat(),
-        "cookies": jwc_cookies,
+        "cookies": cookies,
     }
 
     result = session_store.save_session(session_data)
@@ -64,7 +59,10 @@ def main():
         print("登录态保存失败，请检查 GIST_PAT 和 SESSION_ENCRYPTION_KEY。")
         return 1
 
-    print("登录态已加密保存。GitHub Actions 下次运行会优先复用它。")
+    domains = sorted({cookie.get("domain", "") for cookie in cookies if cookie.get("domain")})
+    print(f"登录态已加密保存，共保存 {len(cookies)} 个 cookie。")
+    print(f"涉及域名: {', '.join(domains)}")
+    print("GitHub Actions 下次运行会优先复用它。")
     return 0
 
 

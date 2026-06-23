@@ -48,12 +48,22 @@ def test_login_reuses_valid_saved_session(monkeypatch):
     assert client.session.cookies.get("JSESSIONID", domain="jwc.swjtu.edu.cn", path="/") == "abc123"
 
 
-def test_login_falls_back_to_password_when_saved_session_invalid(monkeypatch):
+def test_login_stops_when_saved_session_is_invalid(monkeypatch):
     fetcher_module = import_fetcher_without_network(monkeypatch)
     monkeypatch.setattr(fetcher_module.session_store, "load_session", lambda: {"cookies": []})
 
     client = fetcher_module.ScoreFetcher("user", "password")
     monkeypatch.setattr(client, "_validate_current_session", lambda: False)
+    monkeypatch.setattr(client, "_password_login", lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("password login should not run")))
+
+    assert client.login(max_retries=1) is False
+
+
+def test_login_falls_back_to_password_when_no_saved_session(monkeypatch):
+    fetcher_module = import_fetcher_without_network(monkeypatch)
+    monkeypatch.setattr(fetcher_module.session_store, "load_session", lambda: None)
+
+    client = fetcher_module.ScoreFetcher("user", "password")
     monkeypatch.setattr(client, "_password_login", lambda *args, **kwargs: True)
 
     assert client.login(max_retries=1) is True

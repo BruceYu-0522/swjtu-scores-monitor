@@ -54,17 +54,20 @@ class ScoreFetcher:
         self.is_logged_in = False
 
     def login(self, max_retries=10, retry_delay=1):
-        if self._load_saved_session():
+        saved_session_status = self._load_saved_session()
+        if saved_session_status is True:
             print("已复用已保存的教务系统登录态。")
             self.is_logged_in = True
             return True
+        if saved_session_status is False:
+            return False
 
         return self._password_login(max_retries=max_retries, retry_delay=retry_delay)
 
     def _load_saved_session(self):
         saved_session = session_store.load_session()
         if not saved_session:
-            return False
+            return None
 
         self._apply_session_data(saved_session)
         if self._validate_current_session():
