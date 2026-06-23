@@ -27,6 +27,7 @@ def import_fetcher_without_network(monkeypatch):
 def test_login_reuses_valid_saved_session(monkeypatch):
     fetcher_module = import_fetcher_without_network(monkeypatch)
     saved_session = {
+        "user_agent": "Saved Browser User Agent",
         "cookies": [
             {
                 "name": "JSESSIONID",
@@ -45,6 +46,7 @@ def test_login_reuses_valid_saved_session(monkeypatch):
 
     assert client.login() is True
     assert client.is_logged_in is True
+    assert client.session.headers["User-Agent"] == "Saved Browser User Agent"
     assert client.session.cookies.get("JSESSIONID", domain="jwc.swjtu.edu.cn", path="/") == "abc123"
 
 

@@ -70,6 +70,10 @@ class ScoreFetcher:
             return None
 
         self._apply_session_data(saved_session)
+        user_agent = saved_session.get("user_agent")
+        if user_agent:
+            self.session.headers.update({"User-Agent": user_agent})
+
         if self._validate_current_session():
             return True
 
@@ -115,7 +119,12 @@ class ScoreFetcher:
             response = self.session.get(ALL_SCORES_URL, headers={'Referer': LOADING_URL}, timeout=15)
             response.raise_for_status()
             soup = BeautifulSoup(response.text, 'html.parser')
-            return soup.find('table', id='table3') is not None
+            if soup.find('table', id='table3') is not None:
+                return True
+
+            title = soup.title.text.strip() if soup.title and soup.title.text else "无标题"
+            print(f"登录态验证失败: status={response.status_code}, final_url={response.url}, title={title}")
+            return False
         except Exception as e:
             print(f"验证已保存登录态失败: {e}")
             return False

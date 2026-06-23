@@ -36,6 +36,7 @@ def main():
         context = browser.new_context()
         page = context.new_page()
         page.goto(f"{BASE_URL}/service/login.jsp", wait_until="domcontentloaded")
+        user_agent = page.evaluate("navigator.userAgent")
 
         print("浏览器已打开教务网登录页。")
         print("请在浏览器里完成企业微信认证，并进入能查看成绩的页面。")
@@ -51,6 +52,7 @@ def main():
     session_data = {
         "base_url": "https://jwc.swjtu.edu.cn",
         "saved_at": datetime.now(timezone.utc).isoformat(),
+        "user_agent": user_agent,
         "cookies": cookies,
     }
 
