@@ -9,6 +9,14 @@ from utils import session_store
 from utils.fetcher import BASE_URL
 
 
+def build_browser_launch_options():
+    options = {"headless": False}
+    proxy = os.getenv("SWJTU_BROWSER_PROXY")
+    if proxy:
+        options["proxy"] = {"server": proxy}
+    return options
+
+
 def main():
     try:
         from playwright.sync_api import sync_playwright
@@ -27,7 +35,10 @@ def main():
 
     with sync_playwright() as p:
         try:
-            browser = p.chromium.launch(headless=False)
+            launch_options = build_browser_launch_options()
+            if "proxy" in launch_options:
+                print(f"浏览器流量将通过代理: {launch_options['proxy']['server']}")
+            browser = p.chromium.launch(**launch_options)
         except Exception as e:
             print(f"启动 Playwright 浏览器失败: {e}")
             print("如果是首次使用，请先运行：uv run --with playwright playwright install chromium")
