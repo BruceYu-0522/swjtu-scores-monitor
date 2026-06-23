@@ -3,31 +3,35 @@ import requests
 from bs4 import BeautifulSoup
 import time
 import logging
+from datetime import datetime, timezone
 
 from pathlib import Path
 import sys, os
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from utils import ocr  # 导入自定义OCR模块
+from utils import session_store
 from urllib.parse import urlparse
 
 # --- 配置与常量 ---
-BASE_URL = "https://jwc.swjtu.edu.cn"
+def _detect_initial_base_url():
+    base_url = "https://jwc.swjtu.edu.cn"
+    try:
+        response = requests.get(
+            base_url,
+            timeout=5,
+            allow_redirects=True,
+            verify=True
+        )
+        parsed = urlparse(response.url)
+        if parsed.scheme == "http":
+            print("检测到教务使用 HTTP，已切换为 HTTP 访问。")
+            return "http://jwc.swjtu.edu.cn"
+    except Exception as e:
+        print(f"检测教务访问协议失败，默认使用 HTTPS: {e}")
+    return base_url
 
-# 发起请求，允许重定向
-response = requests.get(
-    BASE_URL,
-    timeout=5,
-    allow_redirects=True,  # 自动跟随重定向
-    verify=True  # 验证 SSL 证书
-)
 
-# 解析最终的 URL
-final_url = response.url
-parsed = urlparse(final_url)
-final_protocol = parsed.scheme
-if final_protocol == "http":
-    BASE_URL = "http://jwc.swjtu.edu.cn"
-    print("检测到教务使用 HTTP，已切换为 HTTP 访问。")
+BASE_URL = _detect_initial_base_url()
 
 LOGIN_PAGE_URL = f"{BASE_URL}/service/login.html"
 LOGIN_API_URL = f"{BASE_URL}/vatuu/UserLoginAction"
@@ -50,6 +54,70 @@ class ScoreFetcher:
         self.is_logged_in = False
 
     def login(self, max_retries=10, retry_delay=1):
+        if self._load_saved_session():
+            print("已复用已保存的教务系统登录态。")
+            self.is_logged_in = True
+            return True
+
+        return self._password_login(max_retries=max_retries, retry_delay=retry_delay)
+
+    def _load_saved_session(self):
+        saved_session = session_store.load_session()
+        if not saved_session:
+            return False
+
+        self._apply_session_data(saved_session)
+        if self._validate_current_session():
+            return True
+
+        print("已保存的教务系统登录态不可用，需要重新手动认证。")
+        return False
+
+    def _apply_session_data(self, saved_session):
+        self.session.cookies.clear()
+        for cookie in saved_session.get("cookies", []):
+            name = cookie.get("name")
+            value = cookie.get("value")
+            if not name or value is None:
+                continue
+
+            self.session.cookies.set(
+                name=name,
+                value=value,
+                domain=cookie.get("domain") or "jwc.swjtu.edu.cn",
+                path=cookie.get("path") or "/",
+                secure=bool(cookie.get("secure", False)),
+                expires=cookie.get("expires"),
+            )
+
+    def _current_session_data(self):
+        cookies = []
+        for cookie in self.session.cookies:
+            cookies.append({
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path,
+                "secure": cookie.secure,
+                "expires": cookie.expires,
+            })
+        return {
+            "base_url": BASE_URL,
+            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "cookies": cookies,
+        }
+
+    def _validate_current_session(self):
+        try:
+            response = self.session.get(ALL_SCORES_URL, headers={'Referer': LOADING_URL}, timeout=15)
+            response.raise_for_status()
+            soup = BeautifulSoup(response.text, 'html.parser')
+            return soup.find('table', id='table3') is not None
+        except Exception as e:
+            print(f"验证已保存登录态失败: {e}")
+            return False
+
+    def _password_login(self, max_retries=10, retry_delay=1):
         for attempt in range(1, max_retries + 1):
             print(f"--- 登录尝试 #{attempt}/{max_retries} ---")
             
@@ -79,6 +147,7 @@ class ScoreFetcher:
                     self.session.get(LOADING_URL, headers={'Referer': LOGIN_PAGE_URL}, timeout=10)
                     print("会话建立成功，已登录。")
                     self.is_logged_in = True
+                    session_store.save_session(self._current_session_data())
                     return True
                 else:
                     print(f"登录API失败: {login_result.get('loginMsg', '未知错误')}")

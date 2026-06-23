@@ -130,6 +130,55 @@ GitHub Personal Access Token（个人访问令牌）是用来授权程序访问�
    - **重要：这个 Token 也只会显示一次，请立即复制保存**
    - 这个 Token 就是 `GIST_PAT` 的值
 
+#### ④ SESSION_ENCRYPTION_KEY（登录态加密密钥）
+
+学校统一认证/企业微信认证无法在 GitHub Actions 里自动输入验证码，因此新版流程会把你手动认证后的教务网登录态加密保存到私有 Gist，后续定时任务优先复用该登录态。
+
+- `SESSION_ENCRYPTION_KEY`：用于加密登录态 cookie 的密钥
+- 建议使用一段随机字符串，例如 32 位以上的大小写字母、数字混合内容
+- GitHub Secrets 和你本地运行授权脚本时必须使用同一个值
+- 不要把这个值写进代码或发给别人
+
+### 3.3 首次手动授权登录
+
+如果教务网要求企业微信认证码，请先在本地保存一次登录态：
+
+1. 在你的 fork 仓库里配置 GitHub Secrets：
+   - `GIST_PAT`
+   - `SESSION_ENCRYPTION_KEY`
+   - 以及原有的邮箱相关配置
+2. 在本地终端进入项目目录。
+3. 临时设置环境变量：
+
+   ```bash
+   export GIST_PAT="你的 GitHub gist token"
+   export SESSION_ENCRYPTION_KEY="和 GitHub Secret 一致的随机密钥"
+   ```
+
+   Windows PowerShell 使用：
+
+   ```powershell
+   $env:GIST_PAT="你的 GitHub gist token"
+   $env:SESSION_ENCRYPTION_KEY="和 GitHub Secret 一致的随机密钥"
+   ```
+
+4. 安装 Playwright 浏览器（首次使用需要）：
+
+   ```bash
+   uv run --with playwright playwright install chromium
+   ```
+
+5. 启动授权脚本：
+
+   ```bash
+   uv run --with playwright python scripts/bootstrap_session.py
+   ```
+
+6. 在弹出的浏览器中完成企业微信认证，并进入能查看成绩的页面。
+7. 回到终端按 Enter，脚本会把教务网 cookie 加密保存到私有 Gist。
+
+之后 GitHub Actions 会优先复用这个登录态继续后台监控。登录态过期后，监控任务会发送邮件提醒你重新运行授权脚本。
+
 
 ## 三、部署步骤
 

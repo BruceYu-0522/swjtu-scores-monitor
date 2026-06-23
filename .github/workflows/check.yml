@@ -35,4 +35,5 @@ jobs:
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
           EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
           GIST_PAT: ${{ secrets.GIST_PAT }}
+          SESSION_ENCRYPTION_KEY: ${{ secrets.SESSION_ENCRYPTION_KEY }}
         run: uv run python actions/index.py check

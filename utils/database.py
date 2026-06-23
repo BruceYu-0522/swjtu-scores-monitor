@@ -4,14 +4,10 @@ import requests
 from datetime import datetime, timezone
 
 # --- 配置部分 ---
-GIST_PAT = os.getenv("GIST_PAT")
 # 默认文件名为 scores.json，用户也可以通过环境变量覆盖
 GIST_FILENAME = os.getenv("GIST_NAME", "scores.json")
 # 双重保险
 TARGET_DESCRIPTION = "just_for_swjtu_scores_monitor"
-
-if not GIST_PAT:
-    raise ValueError("严重错误: 必须设置 GIST_PAT 环境变量")
 
 # 确保文件名以 .json 结尾
 if not GIST_FILENAME.endswith(".json"):
@@ -20,10 +16,15 @@ if not GIST_FILENAME.endswith(".json"):
 _CACHED_GIST_ID = None
 
 BASE_URL = "https://api.github.com/gists"
-HEADERS = {
-    "Authorization": f"token {GIST_PAT}",
-    "Accept": "application/vnd.github.v3+json"
-}
+
+def _headers():
+    gist_pat = os.getenv("GIST_PAT")
+    if not gist_pat:
+        raise ValueError("严重错误: 必须设置 GIST_PAT 环境变量")
+    return {
+        "Authorization": f"token {gist_pat}",
+        "Accept": "application/vnd.github.v3+json"
+    }
 
 def _get_or_create_gist_id():
     """
@@ -39,7 +40,7 @@ def _get_or_create_gist_id():
 
     try:
         # 获取用户的所有 Gist
-        response = requests.get(BASE_URL, headers=HEADERS)
+        response = requests.get(BASE_URL, headers=_headers())
         response.raise_for_status()
         gists = response.json()
 
@@ -71,7 +72,7 @@ def _get_or_create_gist_id():
             }
         }
         
-        create_response = requests.post(BASE_URL, headers=HEADERS, json=create_payload)
+        create_response = requests.post(BASE_URL, headers=_headers(), json=create_payload)
         create_response.raise_for_status()
         
         new_gist = create_response.json()
@@ -100,7 +101,7 @@ def save_scores(scores: list, ttl_seconds: int = None):
             }
         }
         
-        response = requests.patch(update_url, headers=HEADERS, json=payload)
+        response = requests.patch(update_url, headers=_headers(), json=payload)
         response.raise_for_status()
         
         print(f"--- 成功保存到 Gist ---")
@@ -114,7 +115,7 @@ def get_latest_scores():
         gist_id = _get_or_create_gist_id()
         get_url = f"{BASE_URL}/{gist_id}"
         
-        response = requests.get(get_url, headers=HEADERS)
+        response = requests.get(get_url, headers=_headers())
         response.raise_for_status()
         
         data = response.json()
@@ -128,4 +129,45 @@ def get_latest_scores():
 
     except Exception as e:
         print(f"读取失败: {e}")
+        return None
+
+def save_file(filename: str, content: str):
+    """Save an arbitrary JSON/text file into the monitor Gist."""
+    try:
+        gist_id = _get_or_create_gist_id()
+        update_url = f"{BASE_URL}/{gist_id}"
+        payload = {
+            "files": {
+                filename: {
+                    "content": content
+                }
+            }
+        }
+
+        response = requests.patch(update_url, headers=_headers(), json=payload)
+        response.raise_for_status()
+
+        print(f"--- 成功保存 {filename} 到 Gist ---")
+        return f"saved@{datetime.now(timezone.utc).isoformat()}"
+    except Exception as e:
+        print(f"保存 {filename} 失败: {e}")
+        return None
+
+def get_file(filename: str):
+    """Read an arbitrary file from the monitor Gist."""
+    try:
+        gist_id = _get_or_create_gist_id()
+        get_url = f"{BASE_URL}/{gist_id}"
+
+        response = requests.get(get_url, headers=_headers())
+        response.raise_for_status()
+
+        data = response.json()
+        files = data.get("files", {})
+        if filename not in files:
+            return None
+
+        return files[filename].get("content")
+    except Exception as e:
+        print(f"读取 {filename} 失败: {e}")
         return None

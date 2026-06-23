@@ -1,11 +1,54 @@
 # actions/index.py
 import os
+import json
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from utils.fetcher import ScoreFetcher
 from utils import database
+
+
+def notify_login_required(send_email, smtp_host, smtp_port, notify_email, email_password):
+    """Send a reminder when the saved enterprise-WeChat login session expires."""
+    alert_file = "swjtu_login_alert.json"
+    try:
+        raw_alert = database.get_file(alert_file)
+        if raw_alert:
+            alert = json.loads(raw_alert)
+            last_sent_at = datetime.fromisoformat(alert.get("last_sent_at"))
+            if datetime.now(timezone.utc) - last_sent_at < timedelta(hours=12):
+                print("登录授权提醒 12 小时内已发送过，本次跳过邮件提醒。")
+                return
+    except Exception as e:
+        print(f"读取登录授权提醒状态失败，将继续发送提醒: {e}")
+
+    subject = "成绩监控需要重新授权登录"
+    body = """
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+      <h2>成绩监控需要重新授权登录</h2>
+      <p>自动监控任务无法复用已保存的教务系统登录态，也无法完成新的自动登录。</p>
+      <p>请在本地重新运行授权脚本，完成企业微信认证后保存新的登录态：</p>
+      <pre style="background:#f6f8fa; padding:12px; border-radius:6px;">uv run --with playwright python scripts/bootstrap_session.py</pre>
+      <p>保存成功后，GitHub Actions 下次运行会继续后台监控。</p>
+    </body>
+    </html>
+    """
+    send_email(
+        smtp_server=smtp_host,
+        smtp_port=smtp_port,
+        sender_email=notify_email,
+        sender_password=email_password,
+        receiver_email=notify_email,
+        subject=subject,
+        body=body
+    )
+    database.save_file(alert_file, json.dumps({
+        "last_sent_at": datetime.now(timezone.utc).isoformat()
+    }, ensure_ascii=False))
 
 
 def fetch_scores():
@@ -104,6 +147,7 @@ def monitor_scores():
         login_success = fetcher.login()
         
         if not login_success:
+            notify_login_required(send_email, smtp_host, smtp_port, notify_email, email_password)
             raise Exception({"status": "error", "message": "登录失败，请检查日志。"})
         
         new_scores = fetcher.get_combined_scores()
