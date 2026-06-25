@@ -227,4 +227,3 @@ git commit -m "docs: explain headless server monitoring"
 
 Push `codex/headless-browser-session` to the `fork` remote, then merge or
 fast-forward it into the fork's default branch after verification.
-
