@@ -595,6 +595,33 @@ GitHub Gist 是 GitHub 提供的代码片段托管服务，本项目使用它来
 - 🐛 提交 Issue 反馈问题
 - 🔀 提交 Pull Request 改进项目
 
+## 腾讯云无界面监控
+
+新版企业微信认证需要复用完整浏览器状态。升级到本版本后，需要重新运行一次授权脚本，旧版只保存 Cookie 的登录态不能继续使用。
+
+服务器首次准备：
+
+```bash
+uv sync
+uv run playwright install chromium
+uv run playwright install-deps chromium
+```
+
+重新授权时，在本地 Windows 通过 SSH SOCKS 代理运行：
+
+```powershell
+$env:SWJTU_BROWSER_PROXY="socks5://127.0.0.1:1080"
+uv run python scripts/bootstrap_session.py
+```
+
+授权脚本会把 Cookie、localStorage 和可用的 IndexedDB 状态加密保存到 Gist。腾讯云服务器之后运行：
+
+```bash
+uv run python actions/index.py monitor
+```
+
+监控程序会短暂启动无界面 Chromium，获取成绩后立即关闭。正常监控不需要 XFCE、xrdp 或远程桌面，也不需要一直保持 SSH SOCKS 通道；只有登录态过期、需要重新扫码认证时才重新建立通道。
+
 
 
 
