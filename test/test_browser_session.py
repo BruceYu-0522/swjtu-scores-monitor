@@ -85,7 +85,7 @@ class FakePlaywrightManager:
         return self.playwright
 
 
-def make_session(html):
+def make_session(html, user_agent=None):
     page = FakePage(html)
     context = FakeContext(page)
     browser = FakeBrowser(context)
@@ -94,6 +94,7 @@ def make_session(html):
     factory = lambda: FakePlaywrightManager(playwright)
     session = BrowserSession(
         {"cookies": [{"name": "JSESSIONID", "value": "abc"}], "origins": []},
+        user_agent=user_agent,
         playwright_factory=factory,
     )
     return session, page, context, browser, chromium, playwright
@@ -101,12 +102,14 @@ def make_session(html):
 
 def test_start_restores_storage_state_and_validates_score_page():
     session, page, context, browser, chromium, playwright = make_session(
-        "<html><table id='table3'></table></html>"
+        "<html><table id='table3'></table></html>",
+        user_agent="Saved Browser User Agent",
     )
 
     assert session.start(SCORE_URL) is True
     assert chromium.launch_options == {"headless": True}
     assert browser.new_context_options["storage_state"]["cookies"][0]["name"] == "JSESSIONID"
+    assert browser.new_context_options["user_agent"] == "Saved Browser User Agent"
     assert page.visited[0][0] == SCORE_URL
 
     session.close()

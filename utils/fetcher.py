@@ -10,6 +10,7 @@ import sys, os
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from utils import ocr  # 导入自定义OCR模块
 from utils import session_store
+from utils.browser_session import BrowserSession
 from urllib.parse import urlparse
 
 # --- 配置与常量 ---
@@ -46,12 +47,14 @@ HEADERS = {
 }
 
 class ScoreFetcher:
-    def __init__(self, username, password):
+    def __init__(self, username, password, browser_session_factory=None):
         self.username = username
         self.password = password
         self.session = requests.Session()
         self.session.headers.update(HEADERS)
         self.is_logged_in = False
+        self.browser_session_factory = browser_session_factory or BrowserSession
+        self.browser_session = None
 
     def login(self, max_retries=10, retry_delay=1):
         saved_session_status = self._load_saved_session()
@@ -68,6 +71,18 @@ class ScoreFetcher:
         saved_session = session_store.load_session()
         if not saved_session:
             return None
+
+        storage_state = saved_session.get("storage_state")
+        if storage_state:
+            self.browser_session = self.browser_session_factory(
+                storage_state,
+                user_agent=saved_session.get("user_agent"),
+            )
+            if self.browser_session.start(ALL_SCORES_URL):
+                return True
+            self.browser_session = None
+            print("已保存的浏览器登录态不可用，需要重新手动认证。")
+            return False
 
         self._apply_session_data(saved_session)
         user_agent = saved_session.get("user_agent")
@@ -183,10 +198,21 @@ class ScoreFetcher:
 
         print("\n正在查询全部成绩记录...")
         try:
-            response = self.session.get(ALL_SCORES_URL, headers={'Referer': LOADING_URL}, timeout=15)
-            response.raise_for_status()
+            if self.browser_session:
+                html = self.browser_session.get_html(
+                    ALL_SCORES_URL,
+                    referer=LOADING_URL,
+                )
+            else:
+                response = self.session.get(
+                    ALL_SCORES_URL,
+                    headers={'Referer': LOADING_URL},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                html = response.text
 
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(html, 'html.parser')
             score_table = soup.find('table', id='table3')
             if not score_table:
                 print("错误：未找到全部成绩表格。")
@@ -214,10 +240,21 @@ class ScoreFetcher:
 
         print("\n正在查询平时成绩明细...")
         try:
-            response = self.session.get(NORMAL_SCORES_URL, headers={'Referer': ALL_SCORES_URL}, timeout=15)
-            response.raise_for_status()
-            
-            soup = BeautifulSoup(response.text, 'html.parser')
+            if self.browser_session:
+                html = self.browser_session.get_html(
+                    NORMAL_SCORES_URL,
+                    referer=ALL_SCORES_URL,
+                )
+            else:
+                response = self.session.get(
+                    NORMAL_SCORES_URL,
+                    headers={'Referer': ALL_SCORES_URL},
+                    timeout=15,
+                )
+                response.raise_for_status()
+                html = response.text
+
+            soup = BeautifulSoup(html, 'html.parser')
             score_table = soup.find('table', id='table3')
             if not score_table:
                 print("错误：未找到平时成绩表格。")
@@ -260,6 +297,14 @@ class ScoreFetcher:
             return None
 
     def get_combined_scores(self):
+        try:
+            return self._get_combined_scores()
+        finally:
+            if self.browser_session:
+                self.browser_session.close()
+                self.browser_session = None
+
+    def _get_combined_scores(self):
         """
         获取总成绩和平时成绩，并将它们合并。
         """

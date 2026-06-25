@@ -2,8 +2,9 @@ from bs4 import BeautifulSoup
 
 
 class BrowserSession:
-    def __init__(self, storage_state, playwright_factory=None):
+    def __init__(self, storage_state, user_agent=None, playwright_factory=None):
         self.storage_state = storage_state
+        self.user_agent = user_agent
         self.playwright_factory = playwright_factory
         self.playwright = None
         self.browser = None
@@ -19,9 +20,10 @@ class BrowserSession:
 
             self.playwright = self.playwright_factory().start()
             self.browser = self.playwright.chromium.launch(headless=True)
-            self.context = self.browser.new_context(
-                storage_state=self.storage_state
-            )
+            context_options = {"storage_state": self.storage_state}
+            if self.user_agent:
+                context_options["user_agent"] = self.user_agent
+            self.context = self.browser.new_context(**context_options)
             self.page = self.context.new_page()
             self.page.goto(validation_url, wait_until="domcontentloaded")
 
