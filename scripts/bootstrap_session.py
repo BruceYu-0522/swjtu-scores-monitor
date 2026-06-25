@@ -17,6 +17,13 @@ def build_browser_launch_options():
     return options
 
 
+def capture_storage_state(context):
+    try:
+        return context.storage_state(indexed_db=True)
+    except TypeError:
+        return context.storage_state()
+
+
 def main():
     try:
         from playwright.sync_api import sync_playwright
@@ -53,7 +60,8 @@ def main():
         print("请在浏览器里完成企业微信认证，并进入能查看成绩的页面。")
         input("完成后回到这里按 Enter 保存登录态...")
 
-        cookies = context.cookies()
+        storage_state = capture_storage_state(context)
+        cookies = storage_state.get("cookies", [])
         browser.close()
 
     if not cookies:
@@ -64,6 +72,7 @@ def main():
         "base_url": "https://jwc.swjtu.edu.cn",
         "saved_at": datetime.now(timezone.utc).isoformat(),
         "user_agent": user_agent,
+        "storage_state": storage_state,
         "cookies": cookies,
     }
 
