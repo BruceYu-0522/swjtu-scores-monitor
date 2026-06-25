@@ -1,5 +1,6 @@
 #custom
 .vscode
+.worktrees/
 utils/debug_output/*
 !utils/debug_output/.gitkeep
 .DS_Store
